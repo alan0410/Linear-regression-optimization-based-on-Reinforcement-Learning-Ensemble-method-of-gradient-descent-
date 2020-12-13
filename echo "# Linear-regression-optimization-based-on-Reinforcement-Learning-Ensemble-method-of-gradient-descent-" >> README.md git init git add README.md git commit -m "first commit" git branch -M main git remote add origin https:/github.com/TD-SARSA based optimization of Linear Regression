@@ -1,0 +1,296 @@
+X = np.array(data[feature_list]).astype(float)
+y_latitude = np.array(data[['latitude' ]]).astype(float)
+y_longitude = np.array((data[['longitude' ]])).astype(float)
+print(X.shape, y_latitude.shape, X.T.shape)
+
+def Linear_Regression (X_train, y_train, X_test, y_test): # 
+    
+    beta = np.linalg.inv(X_train.T.dot(X_train)).dot(X_train.T).dot(y_train)
+    
+    predicted_y = X_test.dot(beta)
+    Rsquare = R2(y_test, predicted_y)
+    mae = MAE(y_test, predicted_y)
+    mse = mean_squared_error(y_test, predicted_y)
+    return Rsquare, beta, predicted_y, mae, mse
+
+def RidgeRegression (X_train,y_train, X_test, y_test, lamda):
+    
+    comp1 = np.linalg.inv(np.dot(np.transpose(X_train), X_train)) + lamda * np.eye(len(X_train.T))
+    beta = np.dot(np.dot(comp1, X_train.T), y_train)
+    
+    predicted_y = np.dot(X_test, beta)
+    
+    Rsquare = R2(y_test, predicted_y)
+    mae = MAE(y_test, predicted_y)
+    mse = mean_squared_error(y_test, predicted_y)
+
+    return Rsquare, beta, predicted_y, mae, mse
+
+def LassoRegression(X_train,y_train, X_test, y_test,iteration_num, lamda):
+    before_beta = np. zeros(len(X_train.T), )
+    new_beta = np.zeros(len(X_train.T), )
+    
+    for i in range(iteration_num):
+        for j in range(len(X_train.T)):
+                        
+            pj = np.sum(X_train[:,j] * (y_train - np.sum( X_train * before_beta , axis = 1) + ( before_beta[j] * X_train[:, j]) ))
+            
+            aj = np.sum(X_train[:,j] ** 2)
+            if pj < ( -lamda / 2):
+                new_beta[j] = (pj + (lamda / 2)) / aj
+            elif pj <= ( + lamda / 2):
+                new_beta[j] = 0
+            elif pj > ( + lamda / 2):
+                new_beta[j] = (pj - (lamda / 2)) / aj
+        
+        before_beta = new_beta
+    
+    beta = new_beta
+    #print(beta)
+    predicted_y = np.dot(X_test, beta)
+    
+    Rsquare = R2(y_test, predicted_y)
+    mae = MAE(y_test, predicted_y)
+    mse = mean_squared_error(y_test, predicted_y)
+
+    return Rsquare, beta, predicted_y, mae, mse
+    
+    
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+
+class My_policy():
+    def __init__(self):
+        #self.x = 10
+        #self.y = 0
+        self.beta = np.zeros(68,)
+        self.beta_list = [self.beta]
+        
+    # n_estimators, learning_rate, reg_rambda
+
+    def step(self, a ):
+        if a == 0 :
+            self.beta, mse, r2 = self.gradient_descent_linreg_ridge( X_train1, y_train1, X_test1, y_test1, self.beta, 0.01, 0)
+            self.beta_list.append(self.beta)
+            reward = - mse
+            
+        elif a == 1 :
+            self.beta, mse, r2= self.gradient_descent_linreg_ridge(X_train1, y_train1, X_test1, y_test1, self.beta, 0.01,  0.0001)
+            self.beta_list.append(self.beta)
+            reward = - mse
+        
+        elif a == 2 :
+            self.beta, mse, r2 = self.LassoRegression(X_train1,y_train1, X_test1, y_test1, self.beta, 0.0001)
+            self.beta_list.append(self.beta)
+
+            reward = - mse
+        
+        done = self.is_done()
+        
+        if done == True:
+            distance = distance_calculation(self.beta_list)
+        else:
+            distance = []
+
+        return self.beta, reward, distance, done
+
+     
+    def cal_cost (w, X, y_true, lamda ):
+        m = len(y_true)
+        predictions= X.dot(w)
+        cost = (1/2 * m) * np.sum(np.square(predictions - y_true)) + (lamda / (2*m)) * np.sum(np.square(w))
+        return cost
+
+    def gradient_descent_linreg_ridge(self, X_train, y_train, X_test, y_test, w, learning_rate, lamda):
+
+        # if lamda = 0 linreg else ridge
+        m= len(y_train)
+
+        #iterations
+        prediction = np.dot(X_train, w)
+
+        w = w - (1/m)* learning_rate * (X_train.T.dot((prediction - y_train.reshape(len(y_train),))) + (lamda * w)) 
+        #cost = cal_cost(w, X_test, y_test, lamda)
+
+        predicted_y = np.dot(X_test, w)
+        r2 = r2_score(y_test, predicted_y)
+        mse= mean_squared_error(y_test, predicted_y)
+
+        return w, mse, r2
+
+
+    def LassoRegression(self, X_train,y_train, X_test, y_test,before_beta, lamda):
+
+        #before_beta = np. zeros(len(X_train.T), )
+        before_beta = before_beta.reshape(len(X_train.T),)
+        new_beta = np.zeros(len(X_train.T), )
+
+        for i in range(1):
+            for j in range(len(X_train.T)):
+                pj = np.sum(X_train[:,j] * ( y_train - np.sum( X_train * before_beta , axis = 1) + ( before_beta[j] * X_train[:, j]) ))
+
+                aj = np.sum(X_train[:,j] ** 2)
+                if pj < ( -lamda / 2):
+                    new_beta[j] = (pj + (lamda / 2)) / aj
+                elif pj <= ( + lamda / 2):
+                    new_beta[j] = 0
+                elif pj > ( + lamda / 2):
+                    new_beta[j] = (pj - (lamda / 2)) / aj
+            
+            before_beta = new_beta
+
+        beta = new_beta
+        #print(beta)
+        predicted_y = np.dot(X_test, beta)
+        mse= mean_squared_error(y_test, predicted_y)
+        r2 = R2(y_test, predicted_y)
+
+        return self.beta, mse, r2
+    
+    
+    def is_done(self):
+        if len(self.beta_list) >= 5 : 
+            if np.linalg.norm(self.beta_list[-1] - self.beta_list[-2]) < 0.005 and np.linalg.norm(self.beta_list[-2] - self.beta_list[-3]) < 0.005 and np.linalg.norm(self.beta_list[-3] - self.beta_list[-4]) < 0.005: # 목표지점에 도달함
+                return True
+            else:
+                return False
+        else:
+            return False
+    def reset(self):
+        self.beta = np.zeros(68, )
+        self.beta_list = [self.beta]
+        
+        return self.beta , self.beta_list
+
+env = My_policy()
+for i in (range(3)):
+    beta , reward,distance,  done = env.step(i)
+    print(" score of {} is {}".format(i, reward))
+    
+class QAgent_SARSA():
+    def __init__(self):
+        
+        self.eps = 0.9 # epsilon greedy 근데 계속 줄어듬
+        self.gamma = 0.01
+        #self.beta_list = []
+        #self.beta_prime_list = []
+        self.Q_vector = np.array([0,0,0])
+
+        
+    def select_action(self, s):
+        #x,y = s
+        beta = s
+        
+        coin = random.random()
+        if coin < self.eps: 
+            action = random.randint(0, 2)  # epsilon 확률만큼 랜덤하게 선택을 한다. 
+            
+        else:
+            #action_val = self.q_table[x,y,:] # 1- epsilon 확률만큼 원래 argmax인 액션을 선택한다.
+
+            
+            action_val = np.array( self.Q_vector )     
+            action = np.argmax(action_val)
+            
+        return action
+    
+    def update_MLP(self, transition): 
+        
+        s,a,r,s_prime, n_epi, i = transition 
+        
+        beta = s 
+        next_beta = s_prime
+        a_prime = self.select_action(next_beta) # s' 에서 선택할 액션(실제로 취한 액션이 아님 그냥 한발짝 가보는거임)
+        
+        model = Model()
+        batch_beta_tensor = torch.from_numpy(beta).float() # batch_x 
+        optimizer = optim.Adam(model.parameters(), lr = 0.0001)
+        
+        
+        pred = model(batch_beta_tensor) # precicted Q
+        pred = pred.detach().numpy()
+        self.Q_vector = pred
+        
+        
+        truth = np.array(r + self.gamma * self.Q_vector[a_prime] )
+        truth = torch.from_numpy(truth).float()
+        truth = torch.tensor(truth, requires_grad=True)
+        pred = torch.from_numpy(np.array(pred[a])).float() 
+        pred = torch.tensor(pred, requires_grad = True)
+      
+        loss = F.mse_loss(pred, truth)
+        optimizer.zero_grad()
+        loss.mean().backward()
+        optimizer.step( 
+        
+        
+    def anneal_eps(self):
+        self.eps -= 0.001
+        self.eps = max(self.eps, 0.1)
+
+def main_SARSA():
+    env = My_policy()
+    agent = QAgent_SARSA()
+    reward_list = []   
+    reward_average_list =[]
+    step_elapsed= []
+    episode_num = 800
+    
+    for n_epi in tqdm(range(episode_num)): # episode 수
+        n_epi = n_epi
+        done = False
+        history = []
+        
+        s , sl = env.reset()
+        
+        i = 0
+        step_elapsed_num = 0
+        distance_in_an_episode = []
+        while not done:
+            a = agent.select_action(s)
+            s_prime, r, distance, done = env.step(a)
+            #print(i, distance, done)
+            if done == True:
+                distance_in_an_episode = distance 
+            else:
+                pass
+            
+            agent.update_MLP((s,a,r,s_prime, n_epi, i)) 
+            reward_list.append(r)
+            s= s_prime
+            step_elapsed_num += 1
+            i += 1
+        if n_epi % 50 == 0:
+            print(distance_in_an_episode)
+            plt.figure(figsize = (3,2))
+            plt.plot(np.arange(len(distance_in_an_episode)), distance_in_an_episode, c='r')
+            plt.title("The differnce of beta")
+            plt.grid()
+            plt.show()
+        
+        del distance_in_an_episode[:] 
+        #print(distance_in_an_episode)
+
+            
+        reward_average = reward_list[-1] 
+        reward_average_list.append(reward_average)
+            
+        step_elapsed.append(step_elapsed_num)
+        #print("beta list : \n", env.beta_list)    
+        agent.anneal_eps()
+        
+        #print(agent.q_table[0])
+    
+    plt.figure()
+    plt.title("Step elapsed")
+    plt.plot(np.arange(episode_num ), np.array(step_elapsed))
+    plt.grid()
+    plt.show()
+    
+    plt.figure()
+    plt.title("Reward")
+    plt.plot(np.arange(episode_num ), np.array(reward_average_list))
+    plt.grid()
+    plt.show()
+    
+    return np.array(reward_average_list)
